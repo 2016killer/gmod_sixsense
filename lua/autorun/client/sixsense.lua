@@ -5,7 +5,6 @@ local speedback = 0
 local currentRadius = 0
 local enable = false
 local limitent = 30
-local entqueue = {}
 local startpos = Vector()
 local sixs_sound = CreateClientConVar('sixs_sound', 'darkvision_scan.wav', true, false)
 
@@ -39,7 +38,7 @@ concommand.Add('sixsense', function(ply, cmd, args)
 	enable = true
 end)
 
-local mat = Material('Models/effects/vol_light001')
+
 local white = Color(255, 255, 255)
 local green = Color(0, 255, 0)
 local red = Color(255, 0, 0)
@@ -77,6 +76,8 @@ local sixsense_mat = CreateMaterial('sixsense_mat', 'UnLitGeneric', {
 	['$translucent'] = 1,
 	['$vertexcolor'] = 1
 })
+
+local wireframe_mat = Material('models/wireframe')
 
 hook.Add('Think', 'sixsense', function()
 	if not enable then
@@ -125,6 +126,7 @@ local renderfunc = function()
 		render.OverrideAlphaWriteEnable(true, false)
 		render.OverrideColorWriteEnable(true, false)
 
+		render.MaterialOverride(wireframe_mat)
 		render.OverrideDepthEnable(true, true)
 			for _, ent in ipairs(entqueue) do
 				if not IsValid(ent) then
@@ -136,17 +138,23 @@ local renderfunc = function()
 				end
 
 				if not IsValid(ent.skeleton) then
-					local Skeleton = ClientsideModel('models/player/skeleton.mdl')
-					Skeleton:SetMaterial('models/wireframe')
-					Skeleton:SetNoDraw(true)
-					Skeleton:SetParent(ent)
-					Skeleton:AddEffects(EF_BONEMERGE)
-					ent.skeleton = Skeleton	
+					if ent:LookupBone('ValveBiped.Bip01_Head1') then
+						local Skeleton = ClientsideModel('models/player/skeleton.mdl')
+						Skeleton:SetNoDraw(true)
+						Skeleton:SetParent(ent)
+						Skeleton:AddEffects(EF_BONEMERGE)
+						ent.skeleton = Skeleton	
+					end
 				end
-				ent.skeleton:DrawModel()
+
+				if IsValid(ent.skeleton) then
+					ent.skeleton:DrawModel()
+				else
+					ent:DrawModel()
+				end
 			end
 		render.OverrideDepthEnable(false)
-		
+		render.MaterialOverride()
 
 		render.SetStencilEnable(true)
 		// 遮罩
