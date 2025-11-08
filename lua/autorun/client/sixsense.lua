@@ -5,7 +5,6 @@ local speedback = 0
 local currentRadius = 0
 local enable = false
 local limitent = 30
-local startpos = Vector()
 local sixs_sound = CreateClientConVar('sixs_sound', 'darkvision_scan.wav', true, false)
 local sixs_color1 = CreateClientConVar('sixs_color1', '0 0 0 200', true, false)
 local sixs_color2 = CreateClientConVar('sixs_color2', '255 255 255 255', true, false)
@@ -62,8 +61,8 @@ concommand.Add('sixsense', function(ply, cmd, args)
 		table.insert(entqueue, ent)
 	end
 
-	startpos = ply:GetPos()
 	enable = true
+	surface.PlaySound(sixs_sound:GetString())
 end)
 
 
@@ -112,8 +111,6 @@ hook.Add('Think', 'sixsense', function()
 		return
 	end
 
-	surface.PlaySound(sixs_sound:GetString())
-
 	currentRadius = currentRadius + FrameTime() * speed
 	if speed > 0 and currentRadius >= targetRadius then
 		speed = -speed * 2
@@ -134,8 +131,8 @@ hook.Add('Think', 'sixsense', function()
 	end
 
 	local sphere1, sphere2 = GetSpheres()
-	sphere1:SetPos(startpos)
-	sphere2:SetPos(startpos)
+	sphere1:SetPos(LocalPlayer():GetPos())
+	sphere2:SetPos(LocalPlayer():GetPos())
 
 	sphere1:SetModelScale(currentRadius * 0.166 + 2)
 	sphere2:SetModelScale(currentRadius * 0.166)
@@ -145,71 +142,55 @@ local renderfunc = function()
 	if not enable then
 		return 
 	end
+	local plypos = LocalPlayer():GetPos()
 	local sphere1, sphere2 = GetSpheres()
 	local currentRadiusSqr = currentRadius * currentRadius
 
 	render.PushRenderTarget(sixsense_rt)
 		render.Clear(0, 0, 0, 0, true, true)
-		
+	
 		render.OverrideAlphaWriteEnable(true, false)
 		render.OverrideColorWriteEnable(true, false)
+		render.OverrideDepthEnable(true, true)
+		sphere1:DrawModel()
+		render.OverrideAlphaWriteEnable(false)
+		render.OverrideColorWriteEnable(false)
+		render.OverrideDepthEnable(false)
+
+		local oldr, oldg, oldb = render.GetColorModulation()
+		local olda = render.GetBlend()
 
 		render.MaterialOverride(wireframe_mat)
-		render.OverrideDepthEnable(true, true)
+		render.SetColorModulation(color3.r / 255, color3.g / 255, color3.b / 255)
+		render.SetBlend(1)
 			for _, ent in ipairs(entqueue) do
 				if not IsValid(ent) then
 					continue
 				end
 
-				if startpos:DistToSqr(ent:GetPos()) > currentRadiusSqr + 500 then
+				if plypos:DistToSqr(ent:GetPos()) > currentRadiusSqr + 500 then
 					continue
 				end
 
 				if not IsValid(ent.skeleton) then
+					local Skeleton
 					if ent:LookupBone('ValveBiped.Bip01_Head1') then
-						local Skeleton = ClientsideModel('models/player/skeleton.mdl')
-						Skeleton:SetNoDraw(true)
-						Skeleton:SetParent(ent)
-						Skeleton:AddEffects(EF_BONEMERGE)
-						ent.skeleton = Skeleton	
+						Skeleton = ClientsideModel('models/player/skeleton.mdl')	
+					else
+						Skeleton = ClientsideModel(ent:GetModel())
 					end
+
+					Skeleton:SetNoDraw(true)
+					Skeleton:SetParent(ent)
+					Skeleton:AddEffects(EF_BONEMERGE)
+					ent.skeleton = Skeleton
 				end
 
-				if IsValid(ent.skeleton) then
-					ent.skeleton:DrawModel()
-				else
-					ent:DrawModel()
-				end
+				ent.skeleton:DrawModel()
 			end
-		render.OverrideDepthEnable(false)
+		render.SetColorModulation(oldr, oldg, oldb)
+		render.SetBlend(olda)
 		render.MaterialOverride()
-
-		render.SetStencilEnable(true)
-		// 遮罩
-		render.SetStencilWriteMask(1)
-		render.SetStencilTestMask(1)
-		render.SetStencilCompareFunction(STENCIL_ALWAYS)
-		render.SetStencilPassOperation(STENCIL_KEEP)
-		render.SetStencilFailOperation(STENCIL_KEEP)
-		render.SetStencilZFailOperation(STENCIL_INCR)
-		// 使用特殊材质便捷双面渲染
-		sphere1:DrawModel()
-	
-		render.OverrideAlphaWriteEnable(false)
-		render.OverrideColorWriteEnable(false)
-
-		render.SetStencilReferenceValue(1)
-		render.SetStencilCompareFunction(STENCIL_EQUAL)
-		render.SetStencilPassOperation(STENCIL_KEEP)
-		render.SetStencilFailOperation(STENCIL_KEEP)
-		render.SetStencilZFailOperation(STENCIL_KEEP)
-
-		cam.Start2D()
-			surface.SetDrawColor(color3.r, color3.g, color3.b, color3.a)
-			surface.DrawRect(0, 0, ScrW(), ScrH())
-		cam.End2D()
-		
-		render.SetStencilEnable(false)
 	render.PopRenderTarget()
 
 
@@ -219,17 +200,12 @@ local renderfunc = function()
 		// 全屏
 		render.SetStencilWriteMask(1)
 		render.SetStencilTestMask(1)
-		
-		// 遮罩
 		render.SetStencilCompareFunction(STENCIL_ALWAYS)
 		render.SetStencilPassOperation(STENCIL_KEEP)
 		render.SetStencilFailOperation(STENCIL_KEEP)
 		render.SetStencilZFailOperation(STENCIL_INCR)
-		// 使用特殊材质便捷双面渲染
 		sphere1:DrawModel()
 	
-	
-
 		render.SetStencilReferenceValue(1)
 		render.SetStencilCompareFunction(STENCIL_EQUAL)
 		render.SetStencilPassOperation(STENCIL_KEEP)
@@ -240,7 +216,7 @@ local renderfunc = function()
 			surface.SetDrawColor(color1.r, color1.g, color1.b, color1.a)
 			surface.DrawRect(0, 0, ScrW(), ScrH())
 
-			surface.SetDrawColor(255, 255, 255, 255)
+			surface.SetDrawColor(255, 255, 255, color3.a)
 			surface.SetMaterial(sixsense_mat)
 			surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
 		cam.End2D()
