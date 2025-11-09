@@ -7,6 +7,11 @@ local enable = false
 local limitent = 30
 local sixs_sound = CreateClientConVar('sixs_sound', 'darkvision_scan.wav', true, false)
 
+concommand.Add('entclass', function(ply, cmd, args)
+	local ent = ply:GetEyeTrace().Entity
+	print(ent, ent:GetClass(), ent:GetModel())
+end)
+
 concommand.Add('sixsense', function(ply, cmd, args)
 	if enable then 
 		return
@@ -23,32 +28,41 @@ concommand.Add('sixsense', function(ply, cmd, args)
 	local entities = ents.FindInSphere(ply:GetPos(), targetRadius)
 	local count = 0
 	for i, ent in ipairs(entities) do
-		if not ent:IsNPC() then
+		local class = ent:GetClass()
+		if not ent:IsNPC() and not scripted_ents.Get(class) and not ent:IsVehicle() and not ent:IsWeapon() and class ~= 'prop_door_rotating' and class ~= 'prop_dynamic' then
+			continue
+		elseif class == 'gmod_hands' then
 			continue
 		end
+
+		if not isfunction(ent.DrawModel) and not isfunction(ent.GetModel) then
+			continue
+		end
+
 		count = count + 1
 		if count > limitent then
 			break
 		end
+
+		if not IsValid(ent.skeleton) then
+			if ent:LookupBone('ValveBiped.Bip01_Head1') then
+				local Skeleton = ClientsideModel('models/player/skeleton.mdl')	
+				Skeleton:SetNoDraw(true)
+				Skeleton:SetParent(ent)
+				Skeleton:AddEffects(EF_BONEMERGE)
+				ent.skeleton = Skeleton
+			elseif not isfunction(ent.DrawModel) then
+				print(565656)
+				local Skeleton = ClientsideModel(ent:GetModel())	
+				Skeleton:SetNoDraw(true)
+				Skeleton:SetParent(ent)
+				Skeleton:AddEffects(EF_BONEMERGE)
+				ent.skeleton = Skeleton
+			end
+		end
+
 		table.insert(entqueue, ent)
 	end
-
-	for _, ent in ipairs(entqueue) do
-		if not IsValid(ent) then
-			continue
-		end
-		print(656565)
-		print(5555, ent, ent:LookupBone('ValveBiped.Bip01_Head1'))
-		if not IsValid(ent.skeleton) and ent:LookupBone('ValveBiped.Bip01_Head1') then
-			print(5555)
-			local Skeleton = ClientsideModel('models/player/skeleton.mdl')	
-			Skeleton:SetNoDraw(true)
-			Skeleton:SetParent(ent)
-			Skeleton:AddEffects(EF_BONEMERGE)
-			ent.skeleton = Skeleton
-		end
-	end
-
 
 	enable = true
 	surface.PlaySound(sixs_sound:GetString())
