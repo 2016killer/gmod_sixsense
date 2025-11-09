@@ -12,7 +12,7 @@ concommand.Add('entclass', function(ply, cmd, args)
 	print(ent, ent:GetClass(), ent:GetModel())
 end)
 
-concommand.Add('sixsense', function(ply, cmd, args)
+function StartSixSense(ply, cmd, args)
 	if enable then 
 		return
 	end
@@ -64,6 +64,21 @@ concommand.Add('sixsense', function(ply, cmd, args)
 	end
 
 	enable = true
+end
+
+function SixsSetSpeed(newspeed) speed = newspeed end
+function SixsSetBackSpeed(newspeed) speedback = newspeed end
+function SixsSetCurrentRadius(newradius) currentRadius = newradius end
+function SixsSetTargetRadius(newradius) targetRadius = newradius end
+
+function SixsGetSpeed() return speed end
+function SixsGetBackSpeed() return speedback end
+function SixsGetCurrentRadius() return currentRadius end
+function SixsGetTargetRadius() return targetRadius end
+
+
+concommand.Add('sixsense', function(ply, cmd, args)
+	StartSixSense(ply, cmd, args)
 	surface.PlaySound(sixs_sound:GetString())
 end)
 
@@ -107,7 +122,7 @@ hook.Add('Think', 'sixsense', function()
 		return
 	end
 
-	currentRadius = currentRadius + FrameTime() * speed
+	currentRadius = currentRadius + RealFrameTime() * speed
 	if speed > 0 and currentRadius >= targetRadius then
 		speed = speedback
 	elseif speed < 0 and currentRadius <= 0 then
