@@ -146,7 +146,7 @@ local renderfunc = function()
 					continue
 				end
 
-				if plypos:DistToSqr(ent:GetPos()) > currentRadiusSqr + 500 then
+				if plypos:DistToSqr(ent:GetPos()) > currentRadiusSqr + 10000 then
 					continue
 				end
 
