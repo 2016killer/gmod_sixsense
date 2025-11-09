@@ -29,7 +29,7 @@ concommand.Add('sixsense', function(ply, cmd, args)
 	local count = 0
 	for i, ent in ipairs(entities) do
 		local class = ent:GetClass()
-		if not ent:IsNPC() and not scripted_ents.Get(class) and not ent:IsVehicle() and not ent:IsWeapon() and class ~= 'prop_door_rotating' and class ~= 'prop_dynamic' then
+		if not ent:IsNPC() and not scripted_ents.Get(class) and not ent:IsVehicle() and not ent:IsWeapon() and class ~= 'prop_dynamic' then
 			continue
 		elseif class == 'gmod_hands' then
 			continue
