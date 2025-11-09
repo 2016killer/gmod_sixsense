@@ -6,34 +6,6 @@ local currentRadius = 0
 local enable = false
 local limitent = 30
 local sixs_sound = CreateClientConVar('sixs_sound', 'darkvision_scan.wav', true, false)
-local sixs_color1 = CreateClientConVar('sixs_color1', '0 0 0 200', true, false)
-local sixs_color2 = CreateClientConVar('sixs_color2', '255 255 255 255', true, false)
-local sixs_color3 = CreateClientConVar('sixs_color3', '255 0 0 200', true, false)
-
-local color1 = Color(0, 0, 0, 200)
-local color2 = Color(255, 255, 255, 255)
-local color3 = Color(255, 0, 0, 200)
-
-local function getcolor(str)
-	local colorStr = string.Split(str, ' ')
-	for i = #colorStr, 1, -1 do
-		if string.Trim(colorStr[i]) == '' then
-			table.remove(colorStr, i)
-			continue
-		end
-	end
-	local color = Color(
-		tonumber(colorStr[1]) or 0,
-		tonumber(colorStr[2]) or 0,
-		tonumber(colorStr[3]) or 0,
-		tonumber(colorStr[4]) or 0
-	)
-	return color
-end
-
-cvars.AddChangeCallback('sixs_color1', function(cvar, old, new) color1 = getcolor(new) end)
-cvars.AddChangeCallback('sixs_color2', function(cvar, old, new) color2 = getcolor(new) end)
-cvars.AddChangeCallback('sixs_color3', function(cvar, old, new) color3 = getcolor(new) end)
 
 concommand.Add('sixsense', function(ply, cmd, args)
 	if enable then 
@@ -61,15 +33,26 @@ concommand.Add('sixsense', function(ply, cmd, args)
 		table.insert(entqueue, ent)
 	end
 
+	for _, ent in ipairs(entqueue) do
+		if not IsValid(ent) then
+			continue
+		end
+		print(656565)
+		print(5555, ent, ent:LookupBone('ValveBiped.Bip01_Head1'))
+		if not IsValid(ent.skeleton) and ent:LookupBone('ValveBiped.Bip01_Head1') then
+			print(5555)
+			local Skeleton = ClientsideModel('models/player/skeleton.mdl')	
+			Skeleton:SetNoDraw(true)
+			Skeleton:SetParent(ent)
+			Skeleton:AddEffects(EF_BONEMERGE)
+			ent.skeleton = Skeleton
+		end
+	end
+
+
 	enable = true
 	surface.PlaySound(sixs_sound:GetString())
 end)
-
-
-local white = Color(255, 255, 255)
-local green = Color(0, 255, 0)
-local red = Color(255, 0, 0)
-local yellow = Color(255, 255, 0)
 
 local sphere1, sphere2
 local function GetSpheres()
@@ -83,7 +66,7 @@ local function GetSpheres()
 	if not IsValid(sphere2) then 
 		sphere2 = ClientsideModel('models/dav0r/hoverball.mdl')
 		sphere2:SetMaterial('Models/effects/vol_light001') 
-		sphere1:SetNoDraw(true)
+		sphere2:SetNoDraw(true)
 	end
 
 	return sphere1, sphere2
@@ -157,12 +140,7 @@ local renderfunc = function()
 		render.OverrideColorWriteEnable(false)
 		render.OverrideDepthEnable(false)
 
-		local oldr, oldg, oldb = render.GetColorModulation()
-		local olda = render.GetBlend()
-
 		render.MaterialOverride(wireframe_mat)
-		render.SetColorModulation(color3.r / 255, color3.g / 255, color3.b / 255)
-		render.SetBlend(1)
 			for _, ent in ipairs(entqueue) do
 				if not IsValid(ent) then
 					continue
@@ -172,24 +150,12 @@ local renderfunc = function()
 					continue
 				end
 
-				if not IsValid(ent.skeleton) then
-					local Skeleton
-					if ent:LookupBone('ValveBiped.Bip01_Head1') then
-						Skeleton = ClientsideModel('models/player/skeleton.mdl')	
-					else
-						Skeleton = ClientsideModel(ent:GetModel())
-					end
-
-					Skeleton:SetNoDraw(true)
-					Skeleton:SetParent(ent)
-					Skeleton:AddEffects(EF_BONEMERGE)
-					ent.skeleton = Skeleton
-				end
-
-				ent.skeleton:DrawModel()
+				if IsValid(ent.skeleton) then
+					ent.skeleton:DrawModel()
+				else
+					ent:DrawModel()
+				end	
 			end
-		render.SetColorModulation(oldr, oldg, oldb)
-		render.SetBlend(olda)
 		render.MaterialOverride()
 	render.PopRenderTarget()
 
@@ -213,10 +179,10 @@ local renderfunc = function()
 		render.SetStencilZFailOperation(STENCIL_KEEP)
 
 		cam.Start2D()
-			surface.SetDrawColor(color1.r, color1.g, color1.b, color1.a)
+			surface.SetDrawColor(0, 0, 0, 200)
 			surface.DrawRect(0, 0, ScrW(), ScrH())
 
-			surface.SetDrawColor(255, 255, 255, color3.a)
+			surface.SetDrawColor(255, 255, 255, 255)
 			surface.SetMaterial(sixsense_mat)
 			surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
 		cam.End2D()
@@ -234,10 +200,7 @@ local renderfunc = function()
 		render.SetStencilPassOperation(STENCIL_KEEP)
 		render.SetStencilFailOperation(STENCIL_KEEP)
 		render.SetStencilZFailOperation(STENCIL_KEEP)
-		cam.Start2D()
-			surface.SetDrawColor(color2.r, color2.g, color2.b, color2.a)
-			surface.DrawRect(0, 0, ScrW(), ScrH())
-		cam.End2D()
+		render.ClearBuffersObeyStencil(255, 255, 255, 255, false)
 
 	render.SetStencilEnable(false)
 	render.SuppressEngineLighting(false)
@@ -257,70 +220,6 @@ end
 hook.Add('PostDrawOpaqueRenderables', 'sixsense', renderfuncsave)
 
 ---------------------------------------------------
-local function CreateColorEditor(cvar)
-	local BGPanel = vgui.Create('DPanel')
-	BGPanel:SetSize(200, 200)
-	BGPanel.Color = getcolor(cvar:GetString())
-
-	local color_label = Label('', BGPanel)
-	color_label:SetPos(40, 160)
-	color_label:SetSize(150, 20)
-	color_label:SetHighlight(true)
-
-	local function UpdateColors(r, g, b, a)
-		r = r or BGPanel.Color.r
-		g = g or BGPanel.Color.g
-		b = b or BGPanel.Color.b
-		a = a or BGPanel.Color.a
-
-		color_label:SetText('Color( '..r..', '..g..', '..b..', '..a..' )')
-
-		BGPanel.Color.r = r
-		BGPanel.Color.g = g
-		BGPanel.Color.b = b
-		BGPanel.Color.a = a
-
-		cvar:SetString(
-			string.format('%s %s %s %s', r, g, b, a)
-		)
-	end
-
-	local color_alpha = vgui.Create('DNumSlider', BGPanel)
-	color_alpha:SetPos(15, 175)
-	color_alpha:SetSize(200, 20)
-	color_alpha:SetMax(255)
-	color_alpha:SetMin(0)
-	color_alpha:SetDecimals(0)
-
-	local color_picker = vgui.Create('DRGBPicker', BGPanel)
-	color_picker:SetPos(5, 5)
-	color_picker:SetSize(30, 190)
-
-	local color_cube = vgui.Create('DColorCube', BGPanel)
-	color_cube:SetPos(40, 5)
-	color_cube:SetSize(155, 155)
-
-	function color_alpha:OnValueChanged(a)
-		UpdateColors(nil, nil, nil, a)
-	end
-
-	function color_picker:OnChange(col)
-		local h = ColorToHSV(col)
-		local _, s, v = ColorToHSV(color_cube:GetRGB())
-		
-		col = HSVToColor(h, s, v)
-		color_cube:SetColor(col)
-		
-		UpdateColors(col.r, col.g, col.b, nil)
-	end
-
-	function color_cube:OnUserChanged(col)
-		UpdateColors(col.r, col.g, col.b, nil)
-	end
-
-	return BGPanel
-end
-
 
 local function menu(panel)
 	panel:Clear()
@@ -329,21 +228,9 @@ local function menu(panel)
 	local button = panel:Button('#default', '')
 	button.DoClick = function()
 		RunConsoleCommand('sixs_sound', 'darkvision_scan.wav')
-		RunConsoleCommand('sixs_color1', '0 0 0 200')
-		RunConsoleCommand('sixs_color2', '255 255 255 255')
-		RunConsoleCommand('sixs_color3', '255 0 0 200')
-
-		print(sixs_sound:GetString())
-		print(sixs_color1:GetString())
-		print(sixs_color2:GetString())
-		print(sixs_color3:GetString())
 	end
 
 	panel:TextEntry('#sixs.sound', 'sixs_sound')
-
-	panel:AddItem(CreateColorEditor(sixs_color1))
-	panel:AddItem(CreateColorEditor(sixs_color2))
-	panel:AddItem(CreateColorEditor(sixs_color3))
 end
 
 local phrase = language.GetPhrase
