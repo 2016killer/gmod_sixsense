@@ -17,7 +17,7 @@ concommand.Add('sixsense', function(ply, cmd, args)
 
 	targetRadius = math.max(100, math.abs(tonumber(args[1]) or 1000))
 	speed = math.max(10, math.abs(tonumber(args[2]) or 1000))
-	speedback = -math.max(10, math.abs(tonumber(args[3]) or 1000))
+	speedback = -math.max(10, math.abs(tonumber(args[3]) or 2000))
 	limitent = math.max(5, math.abs(tonumber(args[4]) or 30))
 
 	local entities = ents.FindInSphere(ply:GetPos(), targetRadius)
@@ -96,7 +96,7 @@ hook.Add('Think', 'sixsense', function()
 
 	currentRadius = currentRadius + FrameTime() * speed
 	if speed > 0 and currentRadius >= targetRadius then
-		speed = -speed * 2
+		speed = speedback
 	elseif speed < 0 and currentRadius <= 0 then
 		enable = false
 		currentRadius = 0
