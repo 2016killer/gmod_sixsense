@@ -52,7 +52,6 @@ concommand.Add('sixsense', function(ply, cmd, args)
 				Skeleton:AddEffects(EF_BONEMERGE)
 				ent.skeleton = Skeleton
 			elseif not isfunction(ent.DrawModel) then
-				print(565656)
 				local Skeleton = ClientsideModel(ent:GetModel())	
 				Skeleton:SetNoDraw(true)
 				Skeleton:SetParent(ent)
