@@ -105,10 +105,11 @@ function sixsense:InitSkeletonDelay(ent, startcolor, delay)
 				skeleton:SetNoDraw(true)
 				skeleton:SetParent(ent)
 				skeleton:AddEffects(EF_BONEMERGE)
+				skeleton:SetupBones()
 				table.insert(self.skeletonEntities, skeleton)
 				ent.sixs_skeleton = skeleton
 			end
-			print(temp)
+			// print(temp)
 			temp = nil
 		end 
 		timer.Simple(delay or 0, temp)
