@@ -53,6 +53,7 @@ sixsense.flag2 = nil
 sixsense.timer = nil
 sixsense.period = 0
 sixsense.speedFadeOut2 = 0
+sixsense.oneshot = false
 
 concommand.Add('sixsense_debug', function()
 	PrintTable(sixsense)
@@ -118,13 +119,14 @@ function sixsense:InitSkeletonDelay(ent, startcolor, delay)
 	end
 end
 
-function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_sound, period)
+function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_sound, period, oneshot)
 	self.flag1 = nil
 	self.flag2 = nil
 	self.timer = nil
+	self.oneshot = oneshot or false
 	timer.Remove('bloodlust_clear_skeleton')
 	self.currentRadius = 0
-
+	
 	self.targetRadius = math.max(1, math.abs(targetRadius or 1000))
 	self.speed = math.max(1, math.abs(speed or 1000))
 	self.speedFadeOut = 255 / self.targetRadius * self.speed
@@ -178,6 +180,7 @@ function sixsense:Clear()
 	self.timer = nil
 	self.period = 0
 	self.speedFadeOut2 = 0
+	self.oneshot = false
 
 	timer.Create('bloodlust_clear_skeleton', 5, 0, function()
 		if self.enable or #self.skeletonEntities < 1 then
@@ -234,7 +237,7 @@ concommand.Add('sixsense_oneshot', function(ply, cmd, args)
 		getcolor(sixs_color1:GetString()),
 		getcolor(sixs_color2:GetString()),
 		getcolor(sixs_color3:GetString()),
-	}, sixs_scan_sound:GetString(), args[4]) 
+	}, sixs_scan_sound:GetString(), args[4], true) 
 	
 	surface.PlaySound(sixs_start_sound:GetString())
 end)
@@ -263,8 +266,13 @@ function sixsense:Think()
 	end
 
 	if not self.flag2 and flag2 then
-		self:Start(LocalPlayer(), self.targetRadius, self.speed, self.limitent, self.startcolors)
-		surface.PlaySound(self.scan_sound or sixs_scan_sound:GetString())
+		if self.oneshot then
+			self:Clear()
+			return
+		else
+			self:Start(LocalPlayer(), self.targetRadius, self.speed, self.limitent, self.startcolors)
+			surface.PlaySound(self.scan_sound or sixs_scan_sound:GetString())
+		end
 	end
 
 	self.flag1 = flag1
