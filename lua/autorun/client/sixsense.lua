@@ -51,6 +51,8 @@ sixsense.enable = false
 sixsense.flag1 = nil
 sixsense.flag2 = nil
 sixsense.timer = nil
+sixsense.period = 0
+sixsense.speedFadeOut2 = 0
 
 concommand.Add('sixsense_debug', function()
 	PrintTable(sixsense)
@@ -115,7 +117,7 @@ function sixsense:InitSkeletonDelay(ent, startcolor, delay)
 	end
 end
 
-function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_sound)
+function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_sound, period)
 	self.flag1 = nil
 	self.flag2 = nil
 	self.timer = nil
@@ -126,6 +128,8 @@ function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_so
 	self.speed = math.max(1, math.abs(speed or 1000))
 	self.speedFadeOut = 255 / self.targetRadius * self.speed
 	self.limitent = math.max(5, math.abs(limitent or 30))
+	self.period = math.max(0.5, math.abs(period or 5))
+	self.speedFadeOut2 = 255 / self.period
 	self.startcolors = startcolors or {
 		Color(0, 0, 0, 255),
 		Color(255, 255, 255, 255),
@@ -171,7 +175,8 @@ function sixsense:Clear()
 	self.flag1 = nil
 	self.flag2 = nil
 	self.timer = nil
-
+	self.period = 0
+	self.speedFadeOut2 = 0
 
 	timer.Create('bloodlust_clear_skeleton', 5, 0, function()
 		if self.enable or #self.skeletonEntities < 1 then
@@ -181,7 +186,7 @@ function sixsense:Clear()
 		for i = #self.skeletonEntities, math.max(#self.skeletonEntities - 30, 1), -1 do
 			local skeleton = self.skeletonEntities[i]
 			if IsValid(skeleton) then
-				skeleton:remove()
+				skeleton:Remove()
 			end
 			table.remove(self.skeletonEntities, i)
 		end
@@ -204,7 +209,7 @@ concommand.Add('sixsense', function(ply, cmd, args)
 		getcolor(sixs_color1:GetString()),
 		getcolor(sixs_color2:GetString()),
 		getcolor(sixs_color3:GetString()),
-	}, sixs_scan_sound:GetString()) then
+	}, sixs_scan_sound:GetString(), args[5]) then
 		surface.PlaySound(sixs_start_sound:GetString())
 	else
 		surface.PlaySound(sixs_stop_sound:GetString())
@@ -216,7 +221,7 @@ concommand.Add('sixsense_new', function(ply, cmd, args)
 		getcolor(sixs_color1:GetString()),
 		getcolor(sixs_color2:GetString()),
 		getcolor(sixs_color3:GetString()),
-	}, sixs_scan_sound:GetString()) then
+	}, sixs_scan_sound:GetString(), args[4]) then
 		surface.PlaySound(sixs_start_sound:GetString())
 	else
 		surface.PlaySound(sixs_stop_sound:GetString())
@@ -239,10 +244,10 @@ function sixsense:Think()
 	self.timer = (self.timer or 0) + dt
 
 	local flag1 = self.timer >= self.duration
-	local flag2 = self.timer >= self.duration + 2
+	local flag2 = self.timer >= self.duration + self.period
 
 	if flag1 then
-		self.colors[3].a = math.Clamp(self.colors[3].a - dt * speedFadeOut * 0.5, 0, 255)
+		self.colors[3].a = math.Clamp(self.colors[3].a - dt * self.speedFadeOut2, 0, 255)
 	end
 
 	if not self.flag2 and flag2 then
