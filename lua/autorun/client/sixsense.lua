@@ -18,14 +18,36 @@ local function getcolor(str)
 	return color
 end
 
+local sixsense_rt = GetRenderTarget('sixsense_rt',  ScrW(), ScrH())
+local sixsense_mat = CreateMaterial('sixsense_mat', 'UnLitGeneric', {
+	['$basetexture'] = sixsense_rt:GetName(),
+	['$translucent'] = 1,
+	['$vertexcolor'] = 1
+})
+
+local sixsense_rt2 = GetRenderTarget('sixsense_rt2',  ScrW(), ScrH())
+local sixsense_mat2 = CreateMaterial('sixsense_mat2', 'UnLitGeneric', {
+	['$basetexture'] = sixsense_rt2:GetName(),
+	['$translucent'] = 1,
+	['$vertexcolor'] = 1,
+	['$alpha'] = 1,
+})
+
+
 sixsense.currentRadius = 0
 sixsense.targetRadius = 0
 sixsense.speed = 0
-sixsense.enable = false
+sixsense.speedFadeOut = 0
 sixsense.limitent = 30
-sixsense.colors = nil
+sixsense.scan_sound = ''
+sixsense.colors = {}
+sixsense.startcolors = {}
 sixsense.entqueue = {}
+sixsense.entqueuelast = {}
+sixsense.duration = 0
 sixsense.skeleton = 'models/player/skeleton.mdl'
+sixsense.skeletonEntities = {}
+sixsense.enable = false
 
 local sixs_start_sound = CreateClientConVar('sixs_start_sound', 'darkvision_start.wav', true, false, '')
 local sixs_scan_sound = CreateClientConVar('sixs_scan_sound', 'darkvision_scan.wav', true, false, '')
@@ -33,11 +55,6 @@ local sixs_stop_sound = CreateClientConVar('sixs_stop_sound', 'darkvision_end.wa
 local sixs_color1 = CreateClientConVar('sixs_color1', '0 0 0 170', true, false, '')
 local sixs_color2 = CreateClientConVar('sixs_color2', '255 255 255 255', true, false, '')
 local sixs_color3 = CreateClientConVar('sixs_color3', '255 255 255 255', true, false, '')
-
-concommand.Add('entclass', function(ply, cmd, args)
-	local ent = ply:GetEyeTrace().Entity
-	print(ent, ent:GetClass(), ent:GetModel())
-end)
 
 function sixsense:Filter(ent)
 	if not IsValid(ent) then
@@ -61,46 +78,42 @@ function sixsense:Filter(ent)
 end
 
 function sixsense:InitSkeletonDelay(ent, startcolor, delay)
-	if not IsValid(ent.sixs_skeleton) then
+	if IsValid(ent.sixs_skeleton) then
+		return
+	end
 
-		if ent:LookupBone('ValveBiped.Bip01_Head1') then
-			local temp = function()
-				if IsValid(ent) then
-					local skeleton = ClientsideModel(self.skeleton, RENDERGROUP_TRANSLUCENT)	
-					skeleton:SetNoDraw(true)
-					skeleton:SetParent(ent)
-					skeleton:AddEffects(EF_BONEMERGE)
-					ent.sixs_skeleton = skeleton
-					// ent.sixs_color = table.Copy(startcolor or Color(255, 255, 255, 255))
-				end
-				temp = nil
-				// print(ent, delay)
-			end 
-			timer.Simple(delay or 0, temp)
-		elseif not isfunction(ent.DrawModel) then
-			local temp = function()
-				if IsValid(ent) then
-					local skeleton = ClientsideModel(ent:GetModel(), RENDERGROUP_TRANSLUCENT)	
-					skeleton:SetNoDraw(true)
-					skeleton:SetParent(ent)
-					skeleton:AddEffects(EF_BONEMERGE)
-					ent.sixs_skeleton = skeleton
-					// ent.sixs_color = table.Copy(startcolor or Color(255, 255, 255, 255))
-				end
-				temp = nil
-			end 
-			timer.Simple(delay or 0, temp)
-		else
-			ent.sixs_skeleton = ent
-		end	
+	local skeletonmodel = nil
+	if ent:LookupBone('ValveBiped.Bip01_Head1') then
+		skeletonmodel = self.skeleton
+	elseif not isfunction(ent.DrawModel) then
+		skeletonmodel = ent:GetModel()
+	end	
+
+	if skeletonmodel then
+		local function temp()
+			if IsValid(ent) then
+				local skeleton = ClientsideModel(self.skeleton, RENDERGROUP_BOTH)	
+				skeleton:SetNoDraw(true)
+				skeleton:SetParent(ent)
+				skeleton:AddEffects(EF_BONEMERGE)
+				table.insert(self.skeletonEntities, skeleton)
+				ent.sixs_skeleton = skeleton
+			end
+			print(temp)
+			temp = nil
+		end 
+		timer.Simple(delay or 0, temp)
+	else
+		ent.sixs_skeleton = ent
 	end
 end
 
 function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_sound)
+	timer.Remove('bloodlust_clear_skeleton')
 	self.currentRadius = 0
 
-	self.targetRadius = math.max(100, math.abs(targetRadius or 1000))
-	self.speed = math.max(10, math.abs(speed or 1000))
+	self.targetRadius = math.max(1, math.abs(targetRadius or 1000))
+	self.speed = math.max(1, math.abs(speed or 1000))
 	self.speedFadeOut = 255 / self.targetRadius * self.speed
 	self.limitent = math.max(5, math.abs(limitent or 30))
 	self.startcolors = startcolors or {
@@ -112,36 +125,8 @@ function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_so
 	self.duration = self.targetRadius / self.speed
 	self.scan_sound = scan_sound or sixs_scan_sound:GetString()
 
-	// self.entqueue = self.entqueue or {}
-	// local hash = {}
-	// for i = #self.entqueue, 1, -1 do
-	// 	local ent = self.entqueue[i]
-	// 	if not IsValid(ent) then
-	// 		table.remove(self.entqueue, i)
-	// 	else
-	// 		hash[ent:EntIndex()] = true
-	// 	end
-	// end
 
-	// if #self.entqueue < self.limitent then
-	// 	local entities = ents.FindInSphere(ply:GetPos(), self.targetRadius)
-	
-	// 	for i, ent in ipairs(entities) do
-	// 		local len = #self.entqueue
-
-	// 		if len >= self.limitent then
-	// 			break
-	// 		end
-
-	// 		if hash[ent:EntIndex()] or not self:Filter(ent) then
-	// 			continue
-	// 		end
-
-	// 		self:InitSkeletonDelay(ent, (len + 1) * self.duration / self.limitent * 0.5)
-
-	// 		table.insert(self.entqueue, ent)
-	// 	end
-	// end
+	self.entqueuelast = self.entqueue or {}
 	self.entqueue = {}
 	local entities = ents.FindInSphere(ply:GetPos(), self.targetRadius)
 	for i, ent in ipairs(entities) do
@@ -159,11 +144,10 @@ function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_so
 		table.insert(self.entqueue, ent)
 	end
 
-
 	self.enable = true
 end
 
-function sixsense:Stop()
+function sixsense:Clear()
 	self.enable = false
 
 	self.currentRadius = 0
@@ -175,20 +159,22 @@ function sixsense:Stop()
 	self.colors = {}
 	self.startcolors = {}
 	self.duration = 0
-
-	if istable(self.entqueue) then
-		for _, ent in ipairs(self.entqueue) do
-			if not IsValid(ent) then
-				continue
-			end
-			if not IsValid(ent.sixs_skeleton) or ent.sixs_skeleton == ent then
-				continue
-			end
-			ent.sixs_skeleton:Remove()
-		end
-	end
 	self.entqueue = {}
+	self.entqueuelast = {}
 
+	timer.Create('bloodlust_clear_skeleton', 5, 0, function()
+		if self.enable or #self.skeletonEntities < 1 then
+			timer.Remove('bloodlust_clear_skeleton')
+		end
+
+		for i = #self.skeletonEntities, math.max(#self.skeletonEntities - 30, 1), -1 do
+			local skeleton = self.skeletonEntities[i]
+			if IsValid(skeleton) then
+				skeleton:remove()
+			end
+			table.remove(self.skeletonEntities, i)
+		end
+	end)
 end
 
 function sixsense:Trigger(...)
@@ -196,7 +182,7 @@ function sixsense:Trigger(...)
 		self:Start(...)
 		return true
 	else
-		self:Stop()
+		self:Clear()
 		return false
 	end
 end
@@ -227,7 +213,6 @@ concommand.Add('sixsense_new', function(ply, cmd, args)
 end)
 
 
-
 function sixsense:Think()
 	if not self.enable then
 		return
@@ -237,6 +222,7 @@ function sixsense:Think()
 
 	self.colors[1].a = math.Clamp(self.colors[1].a - dt * speedFadeOut, 0, 255)
 	self.colors[2].a = math.Clamp(self.colors[2].a - dt * speedFadeOut, 0, 255)
+	self.colors[3].a = math.Clamp(self.colors[3].a - dt * speedFadeOut, 0, 510)
 
 	self.currentRadius = self.currentRadius + dt * self.speed
 	self.timer = (self.timer or 0) + dt
@@ -245,14 +231,6 @@ function sixsense:Think()
 		self:Start(LocalPlayer(), self.targetRadius, self.speed, self.limitent, self.startcolors)
 		surface.PlaySound(self.scan_sound or sixs_scan_sound:GetString())
 	end
-
-	for _, ent in ipairs(self.entqueue) do
-		if not IsValid(ent) or not IsValid(ent.sixs_skeleton) then
-			continue
-		end
-		ent.sixs_alpha = math.Clamp((ent.sixs_alpha or 255) - dt * speedFadeOut, 0, 255)
-	end
-
 end
 
 // local sixsense_rt = GetRenderTargetEx('sixsense_rt',  ScrW(), ScrH(), 
@@ -262,54 +240,63 @@ end
 // 	CREATERENDERTARGETFLAGS_AUTOMIPMAP, 
 // 	IMAGE_FORMAT_RGBA8888
 // )
-local sixsense_rt = GetRenderTarget('sixsense_rt',  ScrW(), ScrH())
 
-local sixsense_mat = CreateMaterial('sixsense_mat', 'UnLitGeneric', {
-	['$basetexture'] = sixsense_rt:GetName(),
-	['$translucent'] = 1,
-	['$vertexcolor'] = 1
-})
-
-local vol_light001_mat = Material('Models/effects/vol_light001')
-
-hook.Add('Think', 'sixsense', function()
-	sixsense:Think()
-end)
+hook.Add('Think', 'sixsense', function() sixsense:Think() end)
 
 local white = Color(255, 255, 255, 255)
+local wireframe_mat = Material('models/wireframe')
+local vol_light001_mat = Material('Models/effects/vol_light001')
 function sixsense:Draw()
 	if not self.enable then
 		return 
 	end
-	local dt = RealFrameTime()
 	local plypos = LocalPlayer():GetPos()
 	local currentRadiusSqr = self.currentRadius * self.currentRadius
-	local color1 = self.colors[1]
-	local color2 = self.colors[2]
-	local color3 = self.colors[3]
+	local color1, color2, color3 = unpack(self.colors)
+	
 	local len = #self.entqueue
-	local speedFadeOut = self.speedFadeOut
+	local lenlast = #self.entqueuelast
+	
+	if len > 0 then
+		render.PushRenderTarget(sixsense_rt)
+			render.Clear(0, 0, 0, 0, true, true)
+			
+			render.MaterialOverride(wireframe_mat)
+				for _, ent in ipairs(self.entqueue) do
+					if not IsValid(ent) then
+						continue
+					end
 
-	render.PushRenderTarget(sixsense_rt)
-		render.Clear(0, 0, 0, 0, true, true)
-		render.SetBlend(1)
-		if len > 0 then
-			for _, ent in ipairs(self.entqueue) do
-				if not IsValid(ent) then
-					continue
+					if plypos:DistToSqr(ent:GetPos()) > currentRadiusSqr + 40000 then
+						continue
+					end
+
+					if IsValid(ent.sixs_skeleton) then
+						ent.sixs_skeleton:DrawModel()
+					end	
 				end
+			render.MaterialOverride()
 
-				if plypos:DistToSqr(ent:GetPos()) > currentRadiusSqr + 40000 then
-					continue
+		render.PopRenderTarget()
+	end
+
+	if lenlast > 0 then
+		render.PushRenderTarget(sixsense_rt2)
+			render.Clear(0, 0, 0, 0, true, true)
+			
+			render.MaterialOverride(wireframe_mat)
+				for _, ent in ipairs(self.entqueuelast) do
+					if not IsValid(ent) then
+						continue
+					end
+
+					if IsValid(ent.sixs_skeleton) then
+						ent.sixs_skeleton:DrawModel()
+					end	
 				end
-
-				if IsValid(ent.sixs_skeleton) then
-					ent.sixs_skeleton:DrawModel()
-				end	
-			end
-		end
-	render.PopRenderTarget()
-
+			render.MaterialOverride()
+		render.PopRenderTarget()
+	end
 
 	render.ClearStencil()
 	render.SetStencilEnable(true)
@@ -334,7 +321,8 @@ function sixsense:Draw()
 			surface.SetDrawColor(color1.r, color1.g, color1.b, color1.a)
 			surface.DrawRect(0, 0, ScrW(), ScrH())
 			if len > 0 then
-				surface.SetDrawColor(color3.r, color3.g, color3.b, 150)
+				surface.SetDrawColor(color3.r, color3.g, color3.b, 255)
+				// sixsense_mat:SetFloat('$alpha', 1)
 				surface.SetMaterial(sixsense_mat)
 				surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
 			end
@@ -361,23 +349,29 @@ function sixsense:Draw()
 
 	render.SetStencilEnable(false)
 	render.SuppressEngineLighting(false)
+
+	
+	if lenlast > 0 then
+		cam.Start2D()
+			surface.SetDrawColor(color3.r, color3.g, color3.b, 255)
+			sixsense_mat2:SetFloat('$alpha', color3.a / 255)
+			surface.SetMaterial(sixsense_mat2)
+			surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
+		cam.End2D()
+	end
+
 end
 
-
-
-local renderfuncsafe = function()
+local function DrawSafe()
 	local succ, err = pcall(sixsense.Draw, sixsense)
 	if not succ then
 		print(err)
-		render.OverrideAlphaWriteEnable(false)
-		render.OverrideDepthEnable(false)
-		render.OverrideColorWriteEnable(false)
+		render.SuppressEngineLighting(true)
 		render.SetStencilEnable(false)
 	end
 end
 
-hook.Add('PostDrawOpaqueRenderables', 'sixsense', renderfuncsafe)
-
+hook.Add('PostDrawOpaqueRenderables', 'sixsense', DrawSafe)
 ---------------------------------------------------
 
 
@@ -490,8 +484,4 @@ hook.Add('PopulateToolMenu', 'sixs.menu', function()
 		menu
 	)
 end)
-
-
-
-
 
