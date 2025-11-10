@@ -89,6 +89,10 @@ end
 
 function sixsense:InitSkeletonDelay(ent, startcolor, delay)
 	if IsValid(ent.sixs_skeleton) then
+		ent.sixs_skeleton:SetPos(ent:GetPos())
+		ent.sixs_skeleton:SetParent(ent)
+		ent.sixs_skeleton:AddEffects(EF_BONEMERGE)
+		ent.sixs_skeleton:SetupBones()
 		return
 	end
 
