@@ -22,16 +22,17 @@ local sixsense_rt = GetRenderTarget('sixsense_rt',  ScrW(), ScrH())
 local sixsense_mat = CreateMaterial('sixsense_mat', 'UnLitGeneric', {
 	['$basetexture'] = sixsense_rt:GetName(),
 	['$translucent'] = 1,
-	['$vertexcolor'] = 1
+	['$vertexcolor'] = 1,
+	['$alpha'] = 1
 })
 
-local sixsense_rt2 = GetRenderTarget('sixsense_rt2',  ScrW(), ScrH())
-local sixsense_mat2 = CreateMaterial('sixsense_mat2', 'UnLitGeneric', {
-	['$basetexture'] = sixsense_rt2:GetName(),
-	['$translucent'] = 1,
-	['$vertexcolor'] = 1,
-	['$alpha'] = 1,
-})
+// local sixsense_rt = GetRenderTargetEx('sixsense_rt',  ScrW(), ScrH(), 
+// 	RT_SIZE_FULL_FRAME_BUFFER, 
+// 	MATERIAL_RT_DEPTH_SEPARATE, 
+// 	bit.bor(4, 8), 
+// 	CREATERENDERTARGETFLAGS_AUTOMIPMAP, 
+// 	IMAGE_FORMAT_RGBA8888
+// )
 
 
 sixsense.currentRadius = 0
@@ -43,7 +44,6 @@ sixsense.scan_sound = ''
 sixsense.colors = {}
 sixsense.startcolors = {}
 sixsense.entqueue = {}
-sixsense.entqueuelast = {}
 sixsense.duration = 0
 sixsense.skeleton = 'models/player/skeleton.mdl'
 sixsense.skeletonEntities = {}
@@ -51,6 +51,10 @@ sixsense.enable = false
 sixsense.flag1 = nil
 sixsense.flag2 = nil
 sixsense.timer = nil
+
+concommand.Add('sixsense_debug', function()
+	PrintTable(sixsense)
+end)
 
 local sixs_start_sound = CreateClientConVar('sixs_start_sound', 'darkvision_start.wav', true, false, '')
 local sixs_scan_sound = CreateClientConVar('sixs_scan_sound', 'darkvision_scan.wav', true, false, '')
@@ -64,15 +68,15 @@ function sixsense:Filter(ent)
 		return false
 	end
 
-	if ent:IsRagdoll() or ent:GetOwner() == LocalPlayer() or ent:GetParent() == LocalPlayer() then
+	if not isfunction(ent.DrawModel) then
 		return false
-	end
-
-	if not isfunction(ent.DrawModel) and not isfunction(ent.GetModel) then
-		return false
-	end
+	end 
 
 	local class = ent:GetClass()
+	if ent:IsRagdoll() or ent:GetOwner() == LocalPlayer() or ent:GetParent() == LocalPlayer() or class == 'lg_ragdoll' then
+		return false
+	end
+
 	if ent:IsNPC() or scripted_ents.GetStored(class) or ent:IsVehicle() or ent:IsWeapon() or class == 'prop_dynamic' then
 		return true
 	end
@@ -164,7 +168,6 @@ function sixsense:Clear()
 	self.startcolors = {}
 	self.duration = 0
 	self.entqueue = {}
-	self.entqueuelast = {}
 	self.flag1 = nil
 	self.flag2 = nil
 	self.timer = nil
@@ -230,20 +233,19 @@ function sixsense:Think()
 
 	self.colors[1].a = math.Clamp(self.colors[1].a - dt * speedFadeOut, 0, 255)
 	self.colors[2].a = math.Clamp(self.colors[2].a - dt * speedFadeOut, 0, 255)
-	self.colors[3].a = math.Clamp(self.colors[3].a - dt * speedFadeOut, 0, 510)
+	
 
 	self.currentRadius = self.currentRadius + dt * self.speed
 	self.timer = (self.timer or 0) + dt
 
 	local flag1 = self.timer >= self.duration
-	local flag2 = self.timer >= self.duration + 1
+	local flag2 = self.timer >= self.duration + 2
 
-	if not self.flag1 and flag1 then
-		self.entqueuelast = self.entqueue or {}
+	if flag1 then
+		self.colors[3].a = math.Clamp(self.colors[3].a - dt * speedFadeOut * 0.5, 0, 255)
 	end
 
 	if not self.flag2 and flag2 then
-		self.timer = 0
 		self:Start(LocalPlayer(), self.targetRadius, self.speed, self.limitent, self.startcolors)
 		surface.PlaySound(self.scan_sound or sixs_scan_sound:GetString())
 	end
@@ -251,14 +253,6 @@ function sixsense:Think()
 	self.flag1 = flag1
 	self.flag2 = flag2
 end
-
-// local sixsense_rt = GetRenderTargetEx('sixsense_rt',  ScrW(), ScrH(), 
-// 	RT_SIZE_FULL_FRAME_BUFFER, 
-// 	MATERIAL_RT_DEPTH_SEPARATE, 
-// 	bit.bor(4, 8), 
-// 	CREATERENDERTARGETFLAGS_AUTOMIPMAP, 
-// 	IMAGE_FORMAT_RGBA8888
-// )
 
 hook.Add('Think', 'sixsense', function() sixsense:Think() end)
 
@@ -274,8 +268,7 @@ function sixsense:Draw()
 	local color1, color2, color3 = unpack(self.colors)
 	
 	local len = #self.entqueue
-	local lenlast = #self.entqueuelast
-	
+
 	if len > 0 then
 		render.PushRenderTarget(sixsense_rt)
 			render.Clear(0, 0, 0, 0, true, true)
@@ -296,24 +289,6 @@ function sixsense:Draw()
 				end
 			render.MaterialOverride()
 
-		render.PopRenderTarget()
-	end
-
-	if lenlast > 0 then
-		render.PushRenderTarget(sixsense_rt2)
-			render.Clear(0, 0, 0, 0, true, true)
-			
-			render.MaterialOverride(wireframe_mat)
-				for _, ent in ipairs(self.entqueuelast) do
-					if not IsValid(ent) then
-						continue
-					end
-
-					if IsValid(ent.sixs_skeleton) then
-						ent.sixs_skeleton:DrawModel()
-					end	
-				end
-			render.MaterialOverride()
 		render.PopRenderTarget()
 	end
 
@@ -341,7 +316,7 @@ function sixsense:Draw()
 			surface.DrawRect(0, 0, ScrW(), ScrH())
 			if len > 0 then
 				surface.SetDrawColor(color3.r, color3.g, color3.b, 255)
-				// sixsense_mat:SetFloat('$alpha', 1)
+				sixsense_mat:SetFloat('$alpha', color3.a / 255)
 				surface.SetMaterial(sixsense_mat)
 				surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
 			end
@@ -368,17 +343,6 @@ function sixsense:Draw()
 
 	render.SetStencilEnable(false)
 	render.SuppressEngineLighting(false)
-
-	
-	if lenlast > 0 then
-		cam.Start2D()
-			surface.SetDrawColor(color3.r, color3.g, color3.b, 255)
-			sixsense_mat2:SetFloat('$alpha', color3.a / 255)
-			surface.SetMaterial(sixsense_mat2)
-			surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
-		cam.End2D()
-	end
-
 end
 
 local function DrawSafe()
@@ -392,8 +356,6 @@ end
 
 hook.Add('PostDrawOpaqueRenderables', 'sixsense', DrawSafe)
 ---------------------------------------------------
-
-
 local function CreateColorEditor(cvar)
 	local BGPanel = vgui.Create('DPanel')
 	BGPanel:SetSize(200, 200)
@@ -471,7 +433,6 @@ end
 
 local function menu(panel)
 	panel:Clear()
-
 
 	local button = panel:Button('#default', '')
 	button.DoClick = function()
