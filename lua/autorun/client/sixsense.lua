@@ -229,6 +229,17 @@ concommand.Add('sixsense_new', function(ply, cmd, args)
 	end
 end)
 
+concommand.Add('sixsense_oneshot', function(ply, cmd, args)
+	sixsense:Start(ply, args[1], args[2], args[3], {
+		getcolor(sixs_color1:GetString()),
+		getcolor(sixs_color2:GetString()),
+		getcolor(sixs_color3:GetString()),
+	}, sixs_scan_sound:GetString(), args[4]) 
+	
+	surface.PlaySound(sixs_start_sound:GetString())
+end)
+
+
 
 function sixsense:Think()
 	if not self.enable then
