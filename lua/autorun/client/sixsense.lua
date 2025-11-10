@@ -48,6 +48,9 @@ sixsense.duration = 0
 sixsense.skeleton = 'models/player/skeleton.mdl'
 sixsense.skeletonEntities = {}
 sixsense.enable = false
+sixsense.flag1 = nil
+sixsense.flag2 = nil
+sixsense.timer = nil
 
 local sixs_start_sound = CreateClientConVar('sixs_start_sound', 'darkvision_start.wav', true, false, '')
 local sixs_scan_sound = CreateClientConVar('sixs_scan_sound', 'darkvision_scan.wav', true, false, '')
@@ -109,6 +112,9 @@ function sixsense:InitSkeletonDelay(ent, startcolor, delay)
 end
 
 function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_sound)
+	self.flag1 = nil
+	self.flag2 = nil
+	self.timer = nil
 	timer.Remove('bloodlust_clear_skeleton')
 	self.currentRadius = 0
 
@@ -125,8 +131,6 @@ function sixsense:Start(ply, targetRadius, speed, limitent, startcolors, scan_so
 	self.duration = self.targetRadius / self.speed
 	self.scan_sound = scan_sound or sixs_scan_sound:GetString()
 
-
-	self.entqueuelast = self.entqueue or {}
 	self.entqueue = {}
 	local entities = ents.FindInSphere(ply:GetPos(), self.targetRadius)
 	for i, ent in ipairs(entities) do
@@ -161,6 +165,10 @@ function sixsense:Clear()
 	self.duration = 0
 	self.entqueue = {}
 	self.entqueuelast = {}
+	self.flag1 = nil
+	self.flag2 = nil
+	self.timer = nil
+
 
 	timer.Create('bloodlust_clear_skeleton', 5, 0, function()
 		if self.enable or #self.skeletonEntities < 1 then
@@ -226,11 +234,22 @@ function sixsense:Think()
 
 	self.currentRadius = self.currentRadius + dt * self.speed
 	self.timer = (self.timer or 0) + dt
-	if self.timer >= self.duration + 1 then
+
+	local flag1 = self.timer >= self.duration
+	local flag2 = self.timer >= self.duration + 1
+
+	if not self.flag1 and flag1 then
+		self.entqueuelast = self.entqueue or {}
+	end
+
+	if not self.flag2 and flag2 then
 		self.timer = 0
 		self:Start(LocalPlayer(), self.targetRadius, self.speed, self.limitent, self.startcolors)
 		surface.PlaySound(self.scan_sound or sixs_scan_sound:GetString())
 	end
+
+	self.flag1 = flag1
+	self.flag2 = flag2
 end
 
 // local sixsense_rt = GetRenderTargetEx('sixsense_rt',  ScrW(), ScrH(), 
